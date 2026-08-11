@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
 
+    # Shared secret for trusted server-to-server callers (see get_current_user_or_service).
+    internal_api_key: str = ""
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]

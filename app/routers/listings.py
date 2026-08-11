@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.agents import emma, james
-from app.deps import get_current_user, get_supabase
+from app.deps import get_current_user_or_service, get_supabase
 from app.schemas.listings import (
     EkgEntity,
     InspectionRequest,
@@ -13,7 +13,7 @@ from app.schemas.listings import (
 from app.truth.envelope import stub_envelope
 from app.truth.gate import TruthViolation, truth_gate
 
-router = APIRouter(prefix="/v1/listings", tags=["listings"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/v1/listings", tags=["listings"], dependencies=[Depends(get_current_user_or_service)])
 
 
 @router.post("", status_code=201, response_model=ListingResponse)

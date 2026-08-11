@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import create_client, Client
 
@@ -34,3 +34,19 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
     return {"id": resp.user.id, "email": resp.user.email}
+
+
+async def get_current_user_or_service(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    x_internal_api_key: Optional[str] = Header(default=None),
+) -> dict:
+    """Accepts either a Supabase user JWT (browser callers) or a shared internal API key
+    (trusted server-to-server callers, e.g. the Lovable marketplace UI's own backend,
+    which has no way to hold a Supabase user session for this project). The internal key
+    is a coarse "trusted internal caller" credential, not a per-user identity - fine for
+    read-mostly endpoints in this router, none of which expose anything beyond what's
+    already meant to be shown to marketplace visitors.
+    """
+    if settings.internal_api_key and x_internal_api_key == settings.internal_api_key:
+        return {"id": "service", "email": None}
+    return await get_current_user(credentials)
