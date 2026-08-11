@@ -25,3 +25,17 @@ def stub_envelope(provenance: str) -> TruthEnvelope:
         provenance=provenance,
         audit_ref=f"aud_stub_{uuid.uuid4().hex[:12]}",
     )
+
+
+def envelope_with_confidence(provenance: str, confidence: float) -> TruthEnvelope:
+    """Session 2: carries a real, agent-reported confidence and provenance chain, but
+    invariants_passed/audit_ref are still placeholders - T-M1..T-M6 aren't actually
+    checked and nothing is written to a cryptographic audit chain yet. That's Session 3.
+    """
+    return TruthEnvelope(
+        invariants_passed=ALL_INVARIANTS,
+        invariants_failed=[],
+        confidence=confidence,
+        provenance=provenance,
+        audit_ref=f"aud_stub_{uuid.uuid4().hex[:12]}",
+    )

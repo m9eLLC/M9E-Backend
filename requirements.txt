@@ -1,5 +1,8 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-pydantic==2.9.2
+pydantic==2.13.4
 pydantic-settings==2.5.2
-supabase==2.7.4
+supabase==2.31.0
+cryptography==42.0.5
+anthropic==0.39.0
+openai==1.55.3
