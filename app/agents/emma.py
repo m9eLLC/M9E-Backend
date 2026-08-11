@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import uuid
@@ -43,8 +44,18 @@ def _slug(value: Optional[str]) -> str:
     return value or "na"
 
 
-def entity_id_for(make: str, model: str, year: Optional[int], category: str) -> str:
-    """Deterministic entity id so resolve-or-create is idempotent without a lookup race."""
+def entity_id_for(make: str, model: str, year: Optional[int], category: str, title: str = "") -> str:
+    """Deterministic entity id so resolve-or-create is idempotent without a lookup race.
+
+    When make, model, and category are all unidentified, falling back to a single shared
+    bucket (e.g. ekg_unknown_na_na_na) would wrongly merge unrelated equipment that just
+    happen to share "no info" - a freeze dryer and a spray gun are not the same entity.
+    In that case, hash the raw title instead: still deterministic/idempotent for an exact
+    re-submission of the same listing, but distinct listings stay distinct entities.
+    """
+    if not make and not model and (not category or category == "unknown"):
+        title_hash = hashlib.sha1(title.strip().lower().encode()).hexdigest()[:12]
+        return f"ekg_unident_{title_hash}"
     return f"ekg_{_slug(category)}_{_slug(make)}_{_slug(model)}_{year if year else 'na'}"
 
 
@@ -81,9 +92,9 @@ def compute_embedding(text: str) -> list[float]:
 
 
 def resolve_or_create_entity(
-    supabase: Client, make: str, model: str, year: Optional[int], category: str, embedding: list[float]
+    supabase: Client, make: str, model: str, year: Optional[int], category: str, embedding: list[float], title: str = ""
 ) -> dict:
-    entity_id = entity_id_for(make, model, year, category)
+    entity_id = entity_id_for(make, model, year, category, title)
 
     existing = supabase.table("ekg_entity").select("*").eq("entity_id", entity_id).limit(1).execute()
     if existing.data:
@@ -115,7 +126,13 @@ def create_listing(supabase: Client, raw: dict) -> dict:
     embedding = compute_embedding(embed_text or raw.get("title", ""))
 
     entity = resolve_or_create_entity(
-        supabase, normalized["make"], normalized["model"], normalized["year"], normalized["category"], embedding
+        supabase,
+        normalized["make"],
+        normalized["model"],
+        normalized["year"],
+        normalized["category"],
+        embedding,
+        raw.get("title", ""),
     )
 
     listing_id = f"lst_{uuid.uuid4().hex[:12]}"
