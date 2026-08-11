@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.agents import emma
+from app.agents import emma, james
 from app.deps import get_current_user, get_supabase
 from app.schemas.listings import (
     EkgEntity,
@@ -10,7 +10,8 @@ from app.schemas.listings import (
     ListingResponse,
     ValuationResponse,
 )
-from app.truth.envelope import envelope_with_confidence, stub_envelope
+from app.truth.envelope import stub_envelope
+from app.truth.gate import TruthViolation, truth_gate
 
 router = APIRouter(prefix="/v1/listings", tags=["listings"], dependencies=[Depends(get_current_user)])
 
@@ -18,10 +19,20 @@ router = APIRouter(prefix="/v1/listings", tags=["listings"], dependencies=[Depen
 @router.post("", status_code=201, response_model=ListingResponse)
 async def create_listing(body: ListingCreateRequest):
     """Emma 01: normalize -> resolve/create entity -> embed -> insert listing (Section 4.2 EKG)."""
+    supabase = get_supabase()
+    raw = body.raw.model_dump()
     try:
-        result = emma.create_listing(get_supabase(), body.raw.model_dump())
+        result = emma.create_listing(supabase, raw)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Emma 01 pipeline failed: {exc}") from exc
+
+    try:
+        truth = truth_gate(supabase, "emma-01", "ekg-enrich", raw, result)
+    except TruthViolation as tv:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Truth Layer rejected Emma 01 output: failed={tv.failed} audit_ref={tv.audit_ref}",
+        ) from tv
 
     entity = result["entity"]
     return ListingResponse(
@@ -33,7 +44,7 @@ async def create_listing(body: ListingCreateRequest):
             category=entity.get("category"),
             ekg_entity_id=entity.get("entity_id"),
         ),
-        truth=envelope_with_confidence("emma-01/ekg-enrich/v5.0", result["confidence"]),
+        truth=truth,
     )
 
 
@@ -59,10 +70,29 @@ async def get_listing(listing_id: str):
 
 @router.get("/{listing_id}/valuation", response_model=ValuationResponse)
 async def get_valuation(listing_id: str):
-    """Stub for James 07. Real pricing lands in Session 3 (Truth Layer + James 07)."""
+    """James 07: retrieve comparables -> adjust -> derive price -> record lineage (Section 6.2)."""
+    supabase = get_supabase()
+    try:
+        result = james.price_listing(supabase, listing_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"James 07 pipeline failed: {exc}") from exc
+
+    try:
+        truth = truth_gate(supabase, "james-07", "pricing", {"listing_id": listing_id}, result)
+    except TruthViolation as tv:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Truth Layer rejected James 07 output: failed={tv.failed} audit_ref={tv.audit_ref}",
+        ) from tv
+
     return ValuationResponse(
-        listing_id=listing_id,
-        truth=stub_envelope("james-07/pricing/stub"),
+        listing_id=result["listing_id"],
+        price_point=result["price_point"],
+        comparables=result["comparables"],
+        adjustments=result["adjustments"],
+        truth=truth,
     )
 
 

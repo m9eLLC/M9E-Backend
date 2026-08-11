@@ -130,7 +130,12 @@ def create_listing(supabase: Client, raw: dict) -> dict:
     }
     supabase.table("ekg_listing").insert(listing_row).execute()
 
-    return {"listing_id": listing_id, "entity": entity, "confidence": normalized["confidence"]}
+    return {
+        "listing_id": listing_id,
+        "entity": entity,
+        "confidence": normalized["confidence"],
+        "provenance": "emma-01/ekg-enrich/v5.0",
+    }
 
 
 def get_listing(supabase: Client, listing_id: str) -> Optional[dict]:
