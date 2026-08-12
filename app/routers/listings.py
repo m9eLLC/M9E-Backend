@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.agents import emma, james
 from app.deps import get_current_user_or_service, get_supabase
+from app.integrations import lovable_sync
 from app.schemas.listings import (
     EkgEntity,
     InspectionRequest,
@@ -35,6 +36,8 @@ async def create_listing(body: ListingCreateRequest):
         ) from tv
 
     entity = result["entity"]
+    lovable_sync.sync_listing(result["listing_id"], raw, entity)
+
     return ListingResponse(
         listing_id=result["listing_id"],
         entity=EkgEntity(
