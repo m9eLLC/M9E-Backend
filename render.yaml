@@ -25,3 +25,7 @@ services:
         sync: false
       - key: CHECKOUT_DOMAIN
         sync: false
+      - key: STRIPE_PRICE_LISTING_FEE
+        sync: false
+      - key: STRIPE_PRICE_INSPECTION_FEE
+        sync: false

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Stripe Checkout (server-side only).
     stripe_secret_key: str = ""
     checkout_domain: str = "https://example.com"
+    stripe_price_listing_fee: str = ""
+    stripe_price_inspection_fee: str = ""
 
     @property
     def allowed_origins_list(self) -> list[str]:

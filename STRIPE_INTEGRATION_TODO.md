@@ -8,15 +8,18 @@ The following values are placeholders and must be updated before going live.
 
 **Files containing placeholders:**
 - [app/routers/checkout.py](app/routers/checkout.py)
-- [app/config.py](app/config.py) (`checkout_domain` default)
+- [app/config.py](app/config.py) (`checkout_domain` default, empty price IDs)
 - [.env.example](.env.example) (`CHECKOUT_DOMAIN`)
 
 | Field | Current Value | What to Set |
 |-------|--------------|-------------|
-| mode | payment | Set to "payment" for one-time charges or "subscription" for recurring billing. If "subscription", `payment_method_collection: "always"` is added automatically. |
+| line_items[].price (listing fee) | `STRIPE_PRICE_LISTING_FEE` (empty) | Price ID (`price_...`) of a one-time "Listing fee" price in the Dashboard (https://dashboard.stripe.com/products). |
+| line_items[].price (inspection fee) | `STRIPE_PRICE_INSPECTION_FEE` (empty) | Price ID of a one-time "Inspection fee" price. |
+| mode | payment (both fees, in `CATALOG`) | Keep "payment" for one-time fees. Change an entry to "subscription" only if that fee becomes recurring; `payment_method_collection: "always"` is then added automatically. |
 | success_url | `{CHECKOUT_DOMAIN}/success?session_id={CHECKOUT_SESSION_ID}` (CHECKOUT_DOMAIN defaults to https://example.com) | Set `CHECKOUT_DOMAIN` to the real site (e.g. the marketplace UI origin) and make sure a `/success` page exists there. Keep the `{CHECKOUT_SESSION_ID}` template. |
 | cancel_url | `{CHECKOUT_DOMAIN}/cancel` | Your actual cancel/return page. |
-| line_items[].price | price_... | Your actual Stripe Price ID from the Dashboard (https://dashboard.stripe.com/prices) or API. |
+
+Until `STRIPE_SECRET_KEY` and the fee's price ID are both set, the endpoint returns 503 for that fee.
 
 ## Configured Parameters
 
@@ -42,11 +45,15 @@ These parameters were configured in Checkout Studio and are already set correctl
 ## Setup
 
 1. **Dependency** — `stripe==16.1.0` is in [requirements.txt](requirements.txt). Locally: `.venv/bin/pip install -r requirements.txt`.
-2. **Environment variables** (server-side only, never in the front end):
-   - `STRIPE_SECRET_KEY` — from https://dashboard.stripe.com/test/apikeys (use `sk_test_...` until live).
+2. **Create the two products** in the Dashboard (Test mode): https://dashboard.stripe.com/products → **Add product**.
+   - "Listing fee": one-off price, your amount and currency. Copy its price ID (`price_...`).
+   - "Inspection fee": the same.
+3. **Environment variables** (server-side only, never in the front end):
+   - `STRIPE_SECRET_KEY` — from https://dashboard.stripe.com/test/apikeys (use `sk_test_...` until live). Secret: enter it yourself.
+   - `STRIPE_PRICE_LISTING_FEE`, `STRIPE_PRICE_INSPECTION_FEE` — the two price IDs (not secret).
    - `CHECKOUT_DOMAIN` — site Checkout returns customers to.
-   - Locally: add both to `.env`. On Render: enter them in the `m9e-backend` service's Environment tab (declared in [render.yaml](render.yaml)).
-3. The Stripe API version is left at the SDK default (no version is pinned in code).
+   - Locally: add them to `.env`. On Render: enter them in the `m9e-backend` service's Environment tab (declared in [render.yaml](render.yaml)).
+4. The Stripe API version is left at the SDK default (no version is pinned in code).
 
 ## New files and changes
 
@@ -60,7 +67,7 @@ requirements.txt            stripe==16.1.0
 
 ## How it works
 
-1. The marketplace UI calls `POST /v1/checkout/sessions` with a Supabase bearer token, or the `X-Internal-Api-Key` header for server-to-server calls (same auth as `/v1/listings`).
+1. The marketplace UI calls `POST /v1/checkout/sessions` with body `{"item": "listing_fee"}` or `{"item": "inspection_fee"}`, plus a Supabase bearer token or the `X-Internal-Api-Key` header for server-to-server calls (same auth as `/v1/listings`). Any other item returns 422.
 2. The gateway creates a Checkout Session and returns `{ "id": "cs_...", "url": "https://checkout.stripe.com/..." }`.
 3. The UI sends the browser to `url` (`window.location.href = url`).
 4. Stripe takes payment and sends the customer to `success_url` (or `cancel_url` if they back out).
@@ -74,10 +81,10 @@ requirements.txt            stripe==16.1.0
 
 ## Next steps
 
-- Create the products and prices in the Dashboard, then replace `price_...` (or take the price/listing from the request body).
+- To add another fee: add an entry to `CATALOG` in `app/routers/checkout.py`, a matching setting in `app/config.py`, and its `STRIPE_PRICE_...` variable.
+- Link each payment to its listing (e.g. pass the listing ID as session `metadata`) once fulfilment is built.
 - **Fulfilment:** add a webhook endpoint for `checkout.session.completed` (verify signatures with a `STRIPE_WEBHOOK_SECRET` from https://dashboard.stripe.com/workbench/webhooks). No webhook exists yet. Do not rely on the success page for fulfilment.
 - **Order tracking:** store the session ID, customer ID and payment status against the listing or order in Supabase once that model exists.
-- Decide `mode` per product (one-time vs subscription).
 
 ## Resources
 
