@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import health, intel, listings, quotes, search
+from app.routers import checkout, health, intel, listings, quotes, search
 
 app = FastAPI(title="M9E Gateway", version="1.0.0")
 
@@ -19,3 +19,4 @@ app.include_router(listings.router)
 app.include_router(search.router)
 app.include_router(quotes.router)
 app.include_router(intel.router)
+app.include_router(checkout.router)
