@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Shared secret for trusted server-to-server callers (see get_current_user_or_service).
     internal_api_key: str = ""
 
+    # Stripe Checkout (server-side only).
+    stripe_secret_key: str = ""
+    checkout_domain: str = "https://example.com"
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
